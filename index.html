@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HaoYun &amp; Emma WEDDING</title>
-    <!-- 引入 PapaParse 用於解析 Google Sheet CSV -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, 'Microsoft JhengHei', sans-serif;
@@ -234,51 +232,27 @@
     </div>
 
     <script>
-        // =================================================================
-        // Google 試算表 CSV 直連網址
-        // =================================================================
-        const sheetCSVUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS9UchaE3HcF9eq7Tmq3-qz2VXpptRc986DssaCraHLvBz8HPS3Dp97bCZZdvWErbwfrwUHXCuwJVos/pub?output=csv'; 
+        // Cloudflare D1 桌次查詢 API：只提供桌號配置與姓名查詢結果
+        const lookupApiUrl = 'https://wedding-checkin-template.showhan-eshowli.workers.dev/api/guest-lookup';
 
-        let guestData = [];
+        // 網頁載入時只取得桌號配置，不下載完整賓客名單
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch(lookupApiUrl, { cache: 'no-store' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || '載入失敗');
 
-        // 網頁載入時，自動去抓取 Google 表單資料
-        document.addEventListener('DOMContentLoaded', () => {
-            Papa.parse(sheetCSVUrl, {
-                download: true,
-                header: true, 
-                complete: function(results) {
-                    // 1. 過濾掉空白資料列
-                    guestData = results.data.filter(row => row['姓名'] && row['姓名'].trim() !== '');
-                    
-                    // 2. 動態計算會場有哪些桌號，並繪製平面圖
-                    const brideTables = new Set();
-                    const groomTables = new Set();
-                    
-                    guestData.forEach(g => {
-                        const tNum = parseInt(g['桌號'], 10);
-                        if (!isNaN(tNum)) {
-                            if (g['Side'] === '女方') brideTables.add(tNum);
-                            if (g['Side'] === '男方') groomTables.add(tNum);
-                        }
-                    });
-                    
-                    initMap(
-                        Array.from(brideTables).sort((a,b)=>a-b), 
-                        Array.from(groomTables).sort((a,b)=>a-b)
-                    );
-                    
-                    // 3. 資料載入完成，解鎖搜尋功能
-                    document.getElementById('statusText').innerText = '歡迎蒞臨！請輸入您的姓名查詢桌號';
-                    const nameInput = document.getElementById('nameInput');
-                    nameInput.placeholder = "請輸入姓名 (例如: 王小明)";
-                    nameInput.disabled = false;
-                    document.getElementById('searchBtn').disabled = false;
-                },
-                error: function(err) {
-                    document.getElementById('statusText').innerHTML = '<span style="color:red;">載入名單失敗，請稍後重新整理。</span>';
-                    console.error("載入 CSV 失敗:", err);
-                }
-            });
+                initMap(data.tables?.bride || [], data.tables?.groom || []);
+
+                document.getElementById('statusText').innerText = '歡迎蒞臨！請輸入您的姓名查詢桌號';
+                const nameInput = document.getElementById('nameInput');
+                nameInput.placeholder = '請輸入至少兩個字的姓名';
+                nameInput.disabled = false;
+                document.getElementById('searchBtn').disabled = false;
+            } catch (err) {
+                document.getElementById('statusText').innerHTML = '<span style="color:red;">載入桌次資料失敗，請稍後重新整理。</span>';
+                console.error('載入桌次資料失敗:', err);
+            }
         });
 
         function initMap(brideLayout, groomLayout) {
@@ -305,48 +279,63 @@
             });
         }
 
-        function searchGuest() {
+        async function searchGuest() {
             const input = document.getElementById('nameInput').value.trim();
             const resultDiv = document.getElementById('result');
             const mapContainer = document.getElementById('mapContainer');
-            
+            const searchBtn = document.getElementById('searchBtn');
+
             resultDiv.innerHTML = '';
             document.querySelectorAll('.table').forEach(el => el.classList.remove('highlight'));
 
-            if (!input) {
-                resultDiv.innerHTML = '<p class="not-found">請輸入姓名喔！</p>';
+            if (input.length < 2) {
+                resultDiv.innerHTML = '<p class="not-found">請輸入至少兩個字的姓名。</p>';
                 mapContainer.style.display = 'none';
                 return;
             }
 
-            const results = guestData.filter(g => g['姓名'].includes(input));
+            searchBtn.disabled = true;
+            searchBtn.innerText = '查詢中…';
 
-            if (results.length > 0) {
-                let html = '';
-                results.forEach(g => {
-                    html += `
-                        <div class="result-card">
-                            <h3>${g['姓名']}</h3>
-                            <div class="result-details">
-                                <p><strong>桌號：</strong> 第 <span style="color:#d88c9a; font-size: 18px; font-weight:bold;">${g['桌號']}</span> 桌</p>
-                                <p><strong>賓客方：</strong> ${g['Side']}</p>
-                                <p><strong>人數：</strong> ${g['人數']} 位</p>
+            try {
+                const response = await fetch(lookupApiUrl + '?name=' + encodeURIComponent(input), { cache: 'no-store' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || '查詢失敗');
+                const results = data.guests || [];
+
+                if (results.length > 0) {
+                    let html = '';
+                    results.forEach(g => {
+                        const sideLabel = g.side === 'groom' ? '男方' : '女方';
+                        html += \`
+                            <div class="result-card">
+                                <h3>\${g.name}</h3>
+                                <div class="result-details">
+                                    <p><strong>桌號：</strong> 第 <span style="color:#d88c9a; font-size: 18px; font-weight:bold;">\${g.tableNumber}</span> 桌</p>
+                                    <p><strong>賓客方：</strong> \${sideLabel}</p>
+                                    <p><strong>人數：</strong> \${g.people} 位</p>
+                                </div>
                             </div>
-                        </div>
-                    `;
-                });
-                resultDiv.innerHTML = html;
-                mapContainer.style.display = 'flex';
-                
-                results.forEach(g => {
-                    const tableEl = document.getElementById('table-' + g['桌號']);
-                    if (tableEl) {
-                        tableEl.classList.add('highlight');
-                    }
-                });
-            } else {
-                resultDiv.innerHTML = '<p class="not-found">找不到此姓名，請確認輸入是否正確，或洽詢現場招待人員。</p>';
+                        \`;
+                    });
+                    resultDiv.innerHTML = html;
+                    mapContainer.style.display = 'flex';
+
+                    results.forEach(g => {
+                        const tableEl = document.getElementById('table-' + g.tableNumber);
+                        if (tableEl) tableEl.classList.add('highlight');
+                    });
+                } else {
+                    resultDiv.innerHTML = '<p class="not-found">找不到此姓名，請確認輸入是否正確，或洽詢現場招待人員。</p>';
+                    mapContainer.style.display = 'none';
+                }
+            } catch (err) {
+                resultDiv.innerHTML = '<p class="not-found">目前無法查詢，請稍後再試。</p>';
                 mapContainer.style.display = 'none';
+                console.error('查詢失敗:', err);
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerText = '查詢桌號';
             }
         }
 
