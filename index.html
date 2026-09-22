@@ -246,7 +246,7 @@
 
                 document.getElementById('statusText').innerText = '歡迎蒞臨！請輸入您的姓名查詢桌號';
                 const nameInput = document.getElementById('nameInput');
-                nameInput.placeholder = '請輸入至少兩個字的姓名';
+                nameInput.placeholder = '請輸入姓名（至少一個字）';
                 nameInput.disabled = false;
                 document.getElementById('searchBtn').disabled = false;
             } catch (err) {
@@ -288,8 +288,8 @@
             resultDiv.innerHTML = '';
             document.querySelectorAll('.table').forEach(el => el.classList.remove('highlight'));
 
-            if (input.length < 2) {
-                resultDiv.innerHTML = '<p class="not-found">請輸入至少兩個字的姓名。</p>';
+            if (input.length < 1) {
+                resultDiv.innerHTML = '<p class="not-found">請輸入至少一個字的姓名。</p>';
                 mapContainer.style.display = 'none';
                 return;
             }
