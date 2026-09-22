@@ -208,7 +208,7 @@
 <body>
 
     <div class="container">
-        <img src="haoyunEmma.jpg" alt="HaoYun & Emma Wedding" class="banner-img">
+        <img id="weddingBanner" src="haoyunEmma.jpg" alt="HaoYun & Emma Wedding" class="banner-img">
         <h1>婚宴座位查詢</h1>
         <p class="subtitle" id="statusText">正在連線至最新名單...</p>
 
@@ -243,6 +243,9 @@
                 if (!response.ok) throw new Error(data.error || '載入失敗');
 
                 initMap(data.tables?.bride || [], data.tables?.groom || []);
+                if (data.bannerImage) {
+                    document.getElementById('weddingBanner').src = data.bannerImage;
+                }
 
                 document.getElementById('statusText').innerText = '歡迎蒞臨！請輸入您的姓名查詢桌號';
                 const nameInput = document.getElementById('nameInput');
