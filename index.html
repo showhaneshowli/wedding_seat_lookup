@@ -253,6 +253,18 @@
                 if (data.bannerImage) {
                     document.getElementById('weddingBanner').src = data.bannerImage;
                 }
+                if (data.browserTabTitle) {
+                    document.title = data.browserTabTitle;
+                }
+                if (data.browserTabIcon) {
+                    let favicon = document.querySelector('link[rel="icon"]');
+                    if (!favicon) {
+                        favicon = document.createElement('link');
+                        favicon.rel = 'icon';
+                        document.head.appendChild(favicon);
+                    }
+                    favicon.href = data.browserTabIcon;
+                }
 
                 document.getElementById('statusText').innerText = '歡迎蒞臨！請輸入您的姓名查詢桌號';
                 const nameInput = document.getElementById('nameInput');
